@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="观天图标">
+  <rect width="512" height="512" rx="76" fill="#101820" />
+  <path fill="#223846" d="M0 334c56-33 117-46 184-41 49 4 88 19 135 42 62 30 122 36 193 9v168H0Z" />
+  <path fill="#f49a6d" d="M0 312c49-44 102-63 161-59 63 5 104 38 161 58 59 21 118 15 190-27v88c-62 31-122 34-181 10-53-21-92-53-153-56-63-4-121 19-178 64Z" />
+  <circle cx="366" cy="150" r="64" fill="#ffd28a" />
+  <path fill="#f6f3ec" d="M163 96a45 45 0 1 0 48 74 54 54 0 1 1-48-74Z" />
+  <circle cx="256" cy="88" r="6" fill="#f6f3ec" />
+  <circle cx="108" cy="206" r="5" fill="#f6f3ec" />
+  <circle cx="426" cy="250" r="5" fill="#f6f3ec" />
+</svg>

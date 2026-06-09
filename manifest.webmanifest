@@ -1,0 +1,18 @@
+{
+  "name": "观天",
+  "short_name": "观天",
+  "description": "朝霞、晚霞、星空和蓝调时间观测工具",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101820",
+  "theme_color": "#101820",
+  "icons": [
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

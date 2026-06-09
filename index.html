@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101820" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="观天" />
+    <title>观天</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./assets/icon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar" aria-label="当前位置和刷新">
+        <div>
+          <p class="eyebrow">今日观测</p>
+          <h1>观天</h1>
+        </div>
+        <button class="icon-button" id="refreshButton" type="button" aria-label="刷新">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M20 12a8 8 0 0 1-14.1 5.1" />
+            <path d="M4 12A8 8 0 0 1 18.1 6.9" />
+            <path d="M6 17H3v3" />
+            <path d="M18 7h3V4" />
+          </svg>
+        </button>
+      </section>
+
+      <section class="hero-panel" aria-label="今日摘要">
+        <div class="sky-orbit" aria-hidden="true">
+          <span class="sun-disc"></span>
+          <span class="moon-disc"></span>
+          <span class="star s1"></span>
+          <span class="star s2"></span>
+          <span class="star s3"></span>
+        </div>
+        <div class="hero-copy">
+          <p id="placeLabel">等待定位</p>
+          <h2 id="summaryTitle">准备观测窗口</h2>
+          <span id="summaryMeta">获取今天的天气和太阳时间</span>
+        </div>
+      </section>
+
+      <section class="score-grid" aria-label="观测概率">
+        <article class="score-card dawn">
+          <div class="score-card__header">
+            <span>朝霞</span>
+            <strong id="dawnScore">--%</strong>
+          </div>
+          <div class="meter" aria-hidden="true"><span id="dawnMeter"></span></div>
+          <p id="dawnTime">--</p>
+          <small id="dawnReason">--</small>
+        </article>
+
+        <article class="score-card sunset">
+          <div class="score-card__header">
+            <span>晚霞</span>
+            <strong id="sunsetScore">--%</strong>
+          </div>
+          <div class="meter" aria-hidden="true"><span id="sunsetMeter"></span></div>
+          <p id="sunsetTime">--</p>
+          <small id="sunsetReason">--</small>
+        </article>
+
+        <article class="score-card stars">
+          <div class="score-card__header">
+            <span>星空</span>
+            <strong id="starsScore">--%</strong>
+          </div>
+          <div class="meter" aria-hidden="true"><span id="starsMeter"></span></div>
+          <p id="starsTime">--</p>
+          <small id="starsReason">--</small>
+        </article>
+      </section>
+
+      <section class="timeline-panel" aria-label="蓝调时间">
+        <div class="section-title">
+          <h2>蓝调时间</h2>
+          <span id="timezoneLabel">--</span>
+        </div>
+        <div class="time-row">
+          <span>清晨</span>
+          <strong id="morningBlue">--</strong>
+        </div>
+        <div class="time-row">
+          <span>傍晚</span>
+          <strong id="eveningBlue">--</strong>
+        </div>
+      </section>
+
+      <section class="detail-panel" aria-label="天气指标">
+        <div class="section-title">
+          <h2>天气指标</h2>
+          <span id="updatedAt">--</span>
+        </div>
+        <div class="metric-grid">
+          <div>
+            <span>总云量</span>
+            <strong id="cloudMetric">--</strong>
+          </div>
+          <div>
+            <span>高云</span>
+            <strong id="highCloudMetric">--</strong>
+          </div>
+          <div>
+            <span>降水概率</span>
+            <strong id="rainMetric">--</strong>
+          </div>
+          <div>
+            <span>能见度</span>
+            <strong id="visibilityMetric">--</strong>
+          </div>
+        </div>
+      </section>
+
+      <p class="status-line" id="statusLine" role="status">点击刷新或允许定位后开始计算</p>
+    </main>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
