@@ -1,5 +1,7 @@
 const OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast";
 const AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality";
+const GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search";
+const SAVED_LOCATION_KEY = "photo-weather-location";
 const DEMO_LOCATION = {
   latitude: 22.3193,
   longitude: 114.1694,
@@ -10,21 +12,14 @@ const LOCATION_OPTIONS = {
   timeout: 12000,
   maximumAge: 1000 * 60 * 30,
 };
-const NEARBY_POINTS = [
-  ["北侧", 0, 12],
-  ["东北侧", 45, 14],
-  ["东侧", 90, 12],
-  ["东南侧", 135, 14],
-  ["南侧", 180, 12],
-  ["西南侧", 225, 14],
-  ["西侧", 270, 12],
-  ["西北侧", 315, 14],
-];
+const GRID_RADIUS = 2;
+const GRID_STEP_KM = 14;
 
 const $ = (id) => document.getElementById(id);
 
 const elements = {
   refreshButton: $("refreshButton"),
+  locationButton: $("locationButton"),
   heroPanel: $("heroPanel"),
   placeLabel: $("placeLabel"),
   summaryTitle: $("summaryTitle"),
@@ -61,7 +56,7 @@ const elements = {
   sheetTitle: $("sheetTitle"),
   sheetScore: $("sheetScore"),
   sheetSubtitle: $("sheetSubtitle"),
-  sheetMapFrame: $("sheetMapFrame"),
+  observationMap: $("observationMap"),
   sheetModel: $("sheetModel"),
   sheetMetrics: $("sheetMetrics"),
   sheetUpdated: $("sheetUpdated"),
@@ -70,11 +65,20 @@ const elements = {
   nearbyTitle: $("nearbyTitle"),
   externalMapLink: $("externalMapLink"),
   nearbyList: $("nearbyList"),
+  locationBackdrop: $("locationBackdrop"),
+  locationSheet: $("locationSheet"),
+  closeLocationSheet: $("closeLocationSheet"),
+  locationSearchInput: $("locationSearchInput"),
+  locationSearchButton: $("locationSearchButton"),
+  useGpsButton: $("useGpsButton"),
+  locationStatus: $("locationStatus"),
+  locationResults: $("locationResults"),
 };
 
 let locationLabel = "";
 let appState = null;
 let activeDetail = "overview";
+let selectedLocation = loadSavedLocation();
 
 function clamp(value, min = 0, max = 100) {
   return Math.max(min, Math.min(max, value));
@@ -106,6 +110,28 @@ function formatKm(meters) {
 function formatNumber(value, digits = 0) {
   if (!Number.isFinite(value)) return "--";
   return value.toFixed(digits);
+}
+
+function loadSavedLocation() {
+  try {
+    const raw = localStorage.getItem(SAVED_LOCATION_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw);
+    if (!Number.isFinite(value.latitude) || !Number.isFinite(value.longitude)) return null;
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+function saveSelectedLocation(location) {
+  selectedLocation = location;
+  localStorage.setItem(SAVED_LOCATION_KEY, JSON.stringify(location));
+}
+
+function clearSelectedLocation() {
+  selectedLocation = null;
+  localStorage.removeItem(SAVED_LOCATION_KEY);
 }
 
 function addMinutes(date, minutes) {
@@ -298,6 +324,35 @@ function destinationPoint(latitude, longitude, bearing, distanceKm) {
   };
 }
 
+function gridLabel(x, y) {
+  if (x === 0 && y === 0) return "当前位置";
+
+  const vertical = y > 0 ? "北" : y < 0 ? "南" : "";
+  const horizontal = x > 0 ? "东" : x < 0 ? "西" : "";
+  return `${vertical}${horizontal}侧`;
+}
+
+function generateObservationGrid(latitude, longitude) {
+  const points = [];
+  const lonScale = Math.max(0.25, Math.cos((latitude * Math.PI) / 180));
+
+  for (let y = -GRID_RADIUS; y <= GRID_RADIUS; y += 1) {
+    for (let x = -GRID_RADIUS; x <= GRID_RADIUS; x += 1) {
+      const distance = Math.hypot(x, y) * GRID_STEP_KM;
+      points.push({
+        label: gridLabel(x, y),
+        gridX: x,
+        gridY: y,
+        distance,
+        latitude: latitude + (y * GRID_STEP_KM) / 111,
+        longitude: longitude + (x * GRID_STEP_KM) / (111 * lonScale),
+      });
+    }
+  }
+
+  return points;
+}
+
 function mapEmbedUrl(latitude, longitude, zoom = 11) {
   const delta = zoom >= 12 ? 0.035 : 0.08;
   const bbox = [longitude - delta, latitude - delta, longitude + delta, latitude + delta].map((value) => value.toFixed(5)).join(",");
@@ -355,11 +410,7 @@ async function fetchWeather(latitude, longitude) {
 }
 
 async function fetchNearbyWeather(latitude, longitude) {
-  const points = NEARBY_POINTS.map(([label, bearing, distance]) => ({
-    label,
-    distance,
-    ...destinationPoint(latitude, longitude, bearing, distance),
-  }));
+  const points = generateObservationGrid(latitude, longitude);
   const params = weatherParams(
     points.map((point) => point.latitude.toFixed(5)).join(","),
     points.map((point) => point.longitude.toFixed(5)).join(",")
@@ -396,6 +447,92 @@ async function fetchAirQuality(latitude, longitude) {
     aerosolOpticalDepth: data.current?.aerosol_optical_depth ?? 0,
     dust: data.current?.dust ?? 0,
   };
+}
+
+function parseCoordinateInput(value) {
+  const match = value.trim().match(/^(-?\d+(?:\.\d+)?)\s*[,，]\s*(-?\d+(?:\.\d+)?)$/);
+  if (!match) return null;
+
+  const latitude = Number(match[1]);
+  const longitude = Number(match[2]);
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+
+  return {
+    latitude,
+    longitude,
+    label: "自定义坐标",
+  };
+}
+
+async function searchLocations(query) {
+  const coordinates = parseCoordinateInput(query);
+  if (coordinates) return [coordinates];
+
+  const params = new URLSearchParams({
+    name: query,
+    count: "8",
+    language: "zh",
+    format: "json",
+  });
+  const response = await fetch(`${GEOCODING_URL}?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error(`位置搜索返回 ${response.status}`);
+  }
+  const data = await response.json();
+
+  return (data.results || []).map((item) => ({
+    latitude: item.latitude,
+    longitude: item.longitude,
+    label: [item.name, item.admin1, item.country].filter(Boolean).join(" · "),
+  }));
+}
+
+function renderLocationResults(results) {
+  if (!results.length) {
+    elements.locationResults.innerHTML = `<div class="location-result"><strong>没有找到结果</strong><span>可以换一个城市名，或直接输入经纬度。</span></div>`;
+    return;
+  }
+
+  elements.locationResults.innerHTML = results
+    .map(
+      (item, index) => `
+        <button class="location-result" type="button" data-location-index="${index}">
+          <strong>${item.label}</strong>
+          <span>${item.latitude.toFixed(4)}, ${item.longitude.toFixed(4)}</span>
+        </button>
+      `
+    )
+    .join("");
+
+  elements.locationResults.querySelectorAll("[data-location-index]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const location = results[Number(button.dataset.locationIndex)];
+      saveSelectedLocation(location);
+      closeLocationSheet();
+      refresh();
+    });
+  });
+}
+
+async function runLocationSearch() {
+  const query = elements.locationSearchInput.value.trim();
+  if (!query) {
+    elements.locationStatus.textContent = "先输入城市、地点，或经纬度。";
+    return;
+  }
+
+  elements.locationStatus.textContent = "正在搜索位置";
+  elements.locationSearchButton.disabled = true;
+
+  try {
+    const results = await searchLocations(query);
+    renderLocationResults(results);
+    elements.locationStatus.textContent = results.length ? "请选择一个位置作为观测点。" : "没有找到匹配位置。";
+  } catch (error) {
+    elements.locationStatus.textContent = error.message || "位置搜索失败";
+  } finally {
+    elements.locationSearchButton.disabled = false;
+  }
 }
 
 function buildDay(weather, air, latitude, longitude, dayIndex = 0) {
@@ -445,6 +582,7 @@ function buildDay(weather, air, latitude, longitude, dayIndex = 0) {
 
 function buildNearbyCandidates(nearby, air, metric) {
   return nearby
+    .filter((point) => point.distance > 0.1)
     .map((point) => {
       const day = buildDay(point.weather, air, point.latitude, point.longitude, 0);
       return {
@@ -454,7 +592,7 @@ function buildNearbyCandidates(nearby, air, metric) {
       };
     })
     .sort((a, b) => b.score - a.score)
-    .slice(0, 4);
+    .slice(0, 5);
 }
 
 function chooseHeadline(scores) {
@@ -566,6 +704,69 @@ function nearbyHtml(items) {
     .join("");
 }
 
+function scoreColor(score) {
+  if (score >= 72) return "#90d890";
+  if (score >= 52) return "#f0c36a";
+  return "#ef7d73";
+}
+
+function buildMapPoints(nearby, air, metric) {
+  const points = nearby.map((point) => {
+    const day = buildDay(point.weather, air, point.latitude, point.longitude, 0);
+    return {
+      ...point,
+      score: day.scores[metric],
+    };
+  });
+  const bestScore = Math.max(...points.map((point) => point.score), 0);
+
+  return points.map((point) => ({
+    ...point,
+    isBest: point.score === bestScore,
+  }));
+}
+
+function mapPointHtml(point) {
+  const left = 50 + point.gridX * 17.8;
+  const top = 50 - point.gridY * 17.8;
+  const size = point.isBest ? 1 : 0;
+  const label = point.distance < 0.1 ? "此处" : `${point.label} ${Math.round(point.distance)}km`;
+
+  return `
+    <div
+      class="heat-point ${point.isBest ? "is-best" : ""}"
+      style="left:${left}%;top:${top}%;background:${scoreColor(point.score)};opacity:${0.78 + size * 0.18}"
+      title="${label} · ${formatPercent(point.score)}"
+    >
+      ${Math.round(point.score)}
+      <small>${point.isBest ? "最佳" : label}</small>
+    </div>
+  `;
+}
+
+function renderObservationMap(config) {
+  const points = buildMapPoints(appState.nearby, appState.air, config.metric);
+  const best = points.find((point) => point.isBest);
+  const hazeOpacity = config.metric === "stars" ? clamp(1 - (appState.today.scores.stars || 0) / 100, 0.18, 0.72) : 0;
+  const haze = config.metric === "stars"
+    ? `<span class="light-haze" style="left:50%;top:50%;width:${150 + hazeOpacity * 160}px;height:${150 + hazeOpacity * 160}px;opacity:${hazeOpacity}"></span>`
+    : "";
+
+  elements.observationMap.innerHTML = `
+    ${haze}
+    <span class="map-compass n">北</span>
+    <span class="map-compass e">东</span>
+    <span class="map-compass s">南</span>
+    <span class="map-compass w">西</span>
+    <span class="map-center" title="当前位置"></span>
+    ${points.map(mapPointHtml).join("")}
+    <div class="map-legend">
+      <span>${config.mapCaption}${best ? ` · 最佳 ${best.label}` : ""}</span>
+      <span class="legend-ramp" aria-hidden="true"></span>
+    </div>
+  `;
+}
+
 function detailConfig(type) {
   const { latitude, longitude, weather, air, today, tomorrow, nearby } = appState;
   const configs = {
@@ -587,8 +788,8 @@ function detailConfig(type) {
       ],
       metric: "fire",
       nearbyTitle: "附近火烧云候选",
+      mapCaption: "周边火烧云热力",
       mapUrl: osmUrl(latitude, longitude, 11),
-      embed: mapEmbedUrl(latitude, longitude, 11),
     },
     dawn: {
       kicker: "朝霞详情",
@@ -608,8 +809,8 @@ function detailConfig(type) {
       ],
       metric: "dawn",
       nearbyTitle: "附近朝霞候选",
+      mapCaption: "周边朝霞热力",
       mapUrl: osmUrl(latitude, longitude, 12),
-      embed: mapEmbedUrl(latitude, longitude, 12),
     },
     sunset: {
       kicker: "晚霞详情",
@@ -629,8 +830,8 @@ function detailConfig(type) {
       ],
       metric: "sunset",
       nearbyTitle: "附近晚霞候选",
+      mapCaption: "周边晚霞热力",
       mapUrl: osmUrl(latitude, longitude, 12),
-      embed: mapEmbedUrl(latitude, longitude, 12),
     },
     fire: {
       kicker: "火烧云详情",
@@ -650,8 +851,8 @@ function detailConfig(type) {
       ],
       metric: "fire",
       nearbyTitle: "附近火烧云候选",
+      mapCaption: "周边火烧云热力",
       mapUrl: osmUrl(latitude, longitude, 12),
-      embed: mapEmbedUrl(latitude, longitude, 12),
     },
     stars: {
       kicker: "星空详情",
@@ -671,8 +872,8 @@ function detailConfig(type) {
       ],
       metric: "stars",
       nearbyTitle: "附近星空候选",
+      mapCaption: "周边星空热力",
       mapUrl: lightPollutionMapUrl(latitude, longitude),
-      embed: mapEmbedUrl(latitude, longitude, 10),
     },
   };
 
@@ -690,7 +891,7 @@ function renderDetail(type) {
   elements.sheetTitle.textContent = config.title;
   elements.sheetScore.textContent = formatPercent(config.score);
   elements.sheetSubtitle.textContent = config.subtitle;
-  elements.sheetMapFrame.src = config.embed;
+  renderObservationMap(config);
   elements.sheetModel.textContent = type === "stars" || type === "fire" ? "Open-Meteo + CAMS" : "Open-Meteo";
   elements.sheetMetrics.innerHTML = metricHtml(config.metrics.map(([label, value]) => ({ label, value })));
   elements.sheetInsights.innerHTML = insightHtml(config.insights);
@@ -707,11 +908,31 @@ function openDetail(type) {
   renderDetail(type);
   elements.sheetBackdrop.hidden = false;
   elements.detailSheet.hidden = false;
+  syncModalState();
 }
 
 function closeDetail() {
   elements.sheetBackdrop.hidden = true;
   elements.detailSheet.hidden = true;
+  syncModalState();
+}
+
+function openLocationSheet() {
+  elements.locationBackdrop.hidden = false;
+  elements.locationSheet.hidden = false;
+  elements.locationSearchInput.focus();
+  syncModalState();
+}
+
+function closeLocationSheet() {
+  elements.locationBackdrop.hidden = true;
+  elements.locationSheet.hidden = true;
+  syncModalState();
+}
+
+function syncModalState() {
+  const isOpen = !elements.detailSheet.hidden || !elements.locationSheet.hidden;
+  document.body.classList.toggle("modal-open", isOpen);
 }
 
 function setLoading(isLoading) {
@@ -727,16 +948,22 @@ async function refresh() {
     let latitude;
     let longitude;
 
-    try {
-      const position = await requestPosition();
-      latitude = position.coords.latitude;
-      longitude = position.coords.longitude;
-      locationLabel = "当前位置";
-    } catch {
-      latitude = DEMO_LOCATION.latitude;
-      longitude = DEMO_LOCATION.longitude;
-      locationLabel = DEMO_LOCATION.label;
-      elements.statusLine.textContent = "定位失败，已载入示例位置";
+    if (selectedLocation) {
+      latitude = selectedLocation.latitude;
+      longitude = selectedLocation.longitude;
+      locationLabel = selectedLocation.label || "手动位置";
+    } else {
+      try {
+        const position = await requestPosition();
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
+        locationLabel = "当前位置";
+      } catch {
+        latitude = DEMO_LOCATION.latitude;
+        longitude = DEMO_LOCATION.longitude;
+        locationLabel = DEMO_LOCATION.label;
+        elements.statusLine.textContent = "定位失败，已载入示例位置";
+      }
     }
 
     const [weather, air, nearby] = await Promise.all([
@@ -770,14 +997,29 @@ async function refresh() {
 }
 
 elements.refreshButton.addEventListener("click", refresh);
+elements.locationButton.addEventListener("click", openLocationSheet);
 elements.heroPanel.addEventListener("click", () => openDetail("overview"));
 document.querySelectorAll("[data-detail]").forEach((button) => {
   button.addEventListener("click", () => openDetail(button.dataset.detail));
 });
 elements.closeSheet.addEventListener("click", closeDetail);
 elements.sheetBackdrop.addEventListener("click", closeDetail);
+elements.closeLocationSheet.addEventListener("click", closeLocationSheet);
+elements.locationBackdrop.addEventListener("click", closeLocationSheet);
+elements.locationSearchButton.addEventListener("click", runLocationSearch);
+elements.locationSearchInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") runLocationSearch();
+});
+elements.useGpsButton.addEventListener("click", () => {
+  clearSelectedLocation();
+  closeLocationSheet();
+  refresh();
+});
 window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeDetail();
+  if (event.key === "Escape") {
+    closeDetail();
+    closeLocationSheet();
+  }
 });
 
 if ("serviceWorker" in navigator) {
