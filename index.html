@@ -29,23 +29,27 @@
         </button>
       </section>
 
-      <section class="hero-panel" aria-label="今日摘要">
-        <div class="sky-orbit" aria-hidden="true">
+      <button class="hero-panel weather-clear" id="heroPanel" type="button" aria-label="打开今日详情">
+        <div class="sky-photo" aria-hidden="true">
           <span class="sun-disc"></span>
           <span class="moon-disc"></span>
           <span class="star s1"></span>
           <span class="star s2"></span>
           <span class="star s3"></span>
+          <span class="rain r1"></span>
+          <span class="rain r2"></span>
+          <span class="rain r3"></span>
         </div>
         <div class="hero-copy">
           <p id="placeLabel">等待定位</p>
           <h2 id="summaryTitle">准备观测窗口</h2>
           <span id="summaryMeta">获取今天的天气和太阳时间</span>
         </div>
-      </section>
+        <span class="open-cue">详情</span>
+      </button>
 
       <section class="score-grid" aria-label="观测概率">
-        <article class="score-card dawn">
+        <button class="score-card dawn" data-detail="dawn" type="button">
           <div class="score-card__header">
             <span>朝霞</span>
             <strong id="dawnScore">--%</strong>
@@ -53,9 +57,9 @@
           <div class="meter" aria-hidden="true"><span id="dawnMeter"></span></div>
           <p id="dawnTime">--</p>
           <small id="dawnReason">--</small>
-        </article>
+        </button>
 
-        <article class="score-card sunset">
+        <button class="score-card sunset" data-detail="sunset" type="button">
           <div class="score-card__header">
             <span>晚霞</span>
             <strong id="sunsetScore">--%</strong>
@@ -63,9 +67,19 @@
           <div class="meter" aria-hidden="true"><span id="sunsetMeter"></span></div>
           <p id="sunsetTime">--</p>
           <small id="sunsetReason">--</small>
-        </article>
+        </button>
 
-        <article class="score-card stars">
+        <button class="score-card fire" data-detail="fire" type="button">
+          <div class="score-card__header">
+            <span>火烧云</span>
+            <strong id="fireScore">--%</strong>
+          </div>
+          <div class="meter" aria-hidden="true"><span id="fireMeter"></span></div>
+          <p id="fireTime">--</p>
+          <small id="fireReason">--</small>
+        </button>
+
+        <button class="score-card stars" data-detail="stars" type="button">
           <div class="score-card__header">
             <span>星空</span>
             <strong id="starsScore">--%</strong>
@@ -73,7 +87,7 @@
           <div class="meter" aria-hidden="true"><span id="starsMeter"></span></div>
           <p id="starsTime">--</p>
           <small id="starsReason">--</small>
-        </article>
+        </button>
       </section>
 
       <section class="timeline-panel" aria-label="蓝调时间">
@@ -118,6 +132,55 @@
 
       <p class="status-line" id="statusLine" role="status">点击刷新或允许定位后开始计算</p>
     </main>
+
+    <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
+    <section class="detail-sheet" id="detailSheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+      <header class="sheet-header">
+        <div>
+          <p id="sheetKicker">观测详情</p>
+          <h2 id="sheetTitle">今日详情</h2>
+        </div>
+        <button class="icon-button compact" id="closeSheet" type="button" aria-label="关闭">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </header>
+
+      <div class="sheet-score">
+        <strong id="sheetScore">--%</strong>
+        <span id="sheetSubtitle">--</span>
+      </div>
+
+      <div class="map-frame">
+        <iframe id="sheetMapFrame" title="观测地图" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </div>
+
+      <div class="sheet-section">
+        <div class="section-title">
+          <h2>关键指标</h2>
+          <span id="sheetModel">Open-Meteo</span>
+        </div>
+        <div class="metric-grid compact-grid" id="sheetMetrics"></div>
+      </div>
+
+      <div class="sheet-section">
+        <div class="section-title">
+          <h2>判断依据</h2>
+          <span id="sheetUpdated">--</span>
+        </div>
+        <ul class="insight-list" id="sheetInsights"></ul>
+      </div>
+
+      <div class="sheet-section" id="nearbySection">
+        <div class="section-title">
+          <h2 id="nearbyTitle">附近候选</h2>
+          <a id="externalMapLink" href="#" target="_blank" rel="noreferrer">打开地图</a>
+        </div>
+        <div class="nearby-list" id="nearbyList"></div>
+      </div>
+    </section>
 
     <script src="./app.js" type="module"></script>
   </body>
